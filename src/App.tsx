@@ -441,27 +441,13 @@ function App() {
         {/* Stats */}
         {images.length > 0 && (
           <div className="grid gap-4 md:grid-cols-4">
-            <Card
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => {
-                setFilterStatus('all')
-                toast.info('Showing all images')
-              }}
-            >
+            <Card className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <CardDescription>Total Images</CardDescription>
                 <CardTitle className="text-3xl">{images.length}</CardTitle>
               </CardHeader>
             </Card>
-            <Card
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => {
-                if (compressingCount === 0) {
-                  setFilterStatus('completed')
-                  toast.info('Showing completed images')
-                }
-              }}
-            >
+            <Card className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <CardDescription>
                   {compressingCount > 0 ? 'Compressing' : 'Completed'}
