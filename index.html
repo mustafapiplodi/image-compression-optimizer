@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="Free unlimited image compression tool. Compress JPEG, PNG, and WebP images by 60-90% directly in your browser. No uploads, completely private and secure." />
+    <meta name="keywords" content="image compressor, compress images, optimize images, reduce image size, free image compression, JPEG compression, PNG compression, WebP compression" />
+    <title>Free Image Compressor - Compress Images by 60-90% | No Limits</title>
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Free Image Compressor",
+      "description": "Compress JPEG, PNG, and WebP images by 60-90% directly in your browser. No uploads, unlimited, and completely private.",
+      "url": "https://example.com",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Unlimited image compression",
+        "No file uploads required",
+        "60-90% file size reduction",
+        "Supports JPEG, PNG, WebP",
+        "Batch processing",
+        "Works offline"
+      ]
+    }
+    </script>
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Free Image Compressor - Compress Images by 60-90%" />
+    <meta property="og:description" content="Unlimited free image compression. Process any number of images directly in your browser with complete privacy." />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Free Image Compressor - No Limits" />
+    <meta name="twitter:description" content="Compress images by 60-90% for free. No uploads, completely private." />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => console.log('SW registered:', registration))
+            .catch(error => console.log('SW registration failed:', error));
+        });
+      }
+    </script>
+  </body>
+</html>
