@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Download, Settings2, Sparkles } from 'lucide-react'
+import { Download, Settings2, Sparkles, CheckSquare, Square } from 'lucide-react'
 import JSZip from 'jszip'
 import { toast } from 'sonner'
 import { AnimatePresence } from 'framer-motion'
@@ -29,22 +29,59 @@ import { triggerSuccessConfetti, triggerBatchCompleteConfetti } from './lib/conf
 
 const MAX_RETRY_ATTEMPTS = 3
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+const SETTINGS_STORAGE_KEY = 'image-compressor-settings'
+
+interface AppSettings {
+  selectedPreset: PresetMode
+  quality: number
+  maxDimension?: number
+  convertToWebP: boolean
+  preserveExif: boolean
+  namingPattern: string
+  viewMode: ViewMode
+  sortBy: SortBy
+  sortOrder: SortOrder
+}
+
+function loadSettings(): Partial<AppSettings> {
+  try {
+    const saved = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    return saved ? JSON.parse(saved) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveSettings(settings: AppSettings) {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  } catch {
+    // Silently fail if localStorage is not available
+  }
+}
 
 function App() {
+  // Load saved settings or use defaults
+  const savedSettings = loadSettings()
+
   const [images, setImages] = useState<ImageFile[]>([])
-  const [selectedPreset, setSelectedPreset] = useState<PresetMode>('web')
-  const [quality, setQuality] = useState(75)
-  const [maxDimension, setMaxDimension] = useState<number | undefined>(1920)
-  const [convertToWebP, setConvertToWebP] = useState(true)
-  const [preserveExif, setPreserveExif] = useState(false)
-  const [namingPattern, setNamingPattern] = useState('{name}-compressed.{ext}')
+  const [selectedPreset, setSelectedPreset] = useState<PresetMode>(savedSettings.selectedPreset || 'web')
+  const [quality, setQuality] = useState(savedSettings.quality || 75)
+  const [maxDimension, setMaxDimension] = useState<number | undefined>(savedSettings.maxDimension !== undefined ? savedSettings.maxDimension : 1920)
+  const [convertToWebP, setConvertToWebP] = useState(savedSettings.convertToWebP !== undefined ? savedSettings.convertToWebP : true)
+  const [preserveExif, setPreserveExif] = useState(savedSettings.preserveExif || false)
+  const [namingPattern, setNamingPattern] = useState(savedSettings.namingPattern || '{name}-compressed.{ext}')
   const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null)
   const [isCompressing, setIsCompressing] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [sortBy, setSortBy] = useState<SortBy>('name')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
+  const [viewMode, setViewMode] = useState<ViewMode>(savedSettings.viewMode || 'grid')
+  const [sortBy, setSortBy] = useState<SortBy>(savedSettings.sortBy || 'name')
+  const [sortOrder, setSortOrder] = useState<SortOrder>(savedSettings.sortOrder || 'asc')
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [deletedImages, setDeletedImages] = useState<ImageFile[]>([])
+  const [deleteToastId, setDeleteToastId] = useState<string | number | undefined>()
 
   // Apply preset when changed
   useEffect(() => {
@@ -55,6 +92,22 @@ function App() {
       setConvertToWebP(preset.format === 'webp')
     }
   }, [selectedPreset])
+
+  // Save settings to localStorage whenever they change
+  useEffect(() => {
+    const settings: AppSettings = {
+      selectedPreset,
+      quality,
+      maxDimension,
+      convertToWebP,
+      preserveExif,
+      namingPattern,
+      viewMode,
+      sortBy,
+      sortOrder,
+    }
+    saveSettings(settings)
+  }, [selectedPreset, quality, maxDimension, convertToWebP, preserveExif, namingPattern, viewMode, sortBy, sortOrder])
 
   const validateFile = (file: File): string | null => {
     if (!file.type.startsWith('image/')) {
@@ -102,6 +155,54 @@ function App() {
       compressImages(newImages)
     }
   }, [])
+
+  // Fullscreen drop target
+  useEffect(() => {
+    let dragCounter = 0
+
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault()
+      dragCounter++
+      if (e.dataTransfer?.types.includes('Files')) {
+        setIsDraggingOver(true)
+      }
+    }
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault()
+      dragCounter--
+      if (dragCounter === 0) {
+        setIsDraggingOver(false)
+      }
+    }
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault()
+    }
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault()
+      dragCounter = 0
+      setIsDraggingOver(false)
+
+      const files = Array.from(e.dataTransfer?.files || [])
+      if (files.length > 0) {
+        handleFilesSelected(files)
+      }
+    }
+
+    document.addEventListener('dragenter', handleDragEnter)
+    document.addEventListener('dragleave', handleDragLeave)
+    document.addEventListener('dragover', handleDragOver)
+    document.addEventListener('drop', handleDrop)
+
+    return () => {
+      document.removeEventListener('dragenter', handleDragEnter)
+      document.removeEventListener('dragleave', handleDragLeave)
+      document.removeEventListener('dragover', handleDragOver)
+      document.removeEventListener('drop', handleDrop)
+    }
+  }, [handleFilesSelected])
 
   const compressImages = useCallback(async (imagesToCompress: ImageFile[]) => {
     setIsCompressing(true)
@@ -255,10 +356,38 @@ function App() {
     toast.success('ZIP file downloaded')
   }, [images, handleDownload, namingPattern])
 
+  const handleUndo = useCallback(() => {
+    if (deletedImages.length > 0) {
+      setImages((prev) => [...prev, ...deletedImages])
+      setDeletedImages([])
+      if (deleteToastId) {
+        toast.dismiss(deleteToastId)
+      }
+      toast.success('Restored deleted images')
+    }
+  }, [deletedImages, deleteToastId])
+
   const handleDelete = useCallback((id: string) => {
+    const imageToDelete = images.find((img) => img.id === id)
+    if (!imageToDelete) return
+
     setImages((prev) => prev.filter((img) => img.id !== id))
-    toast.success('Image deleted')
-  }, [])
+    setDeletedImages([imageToDelete])
+
+    const toastId = toast.success('Image deleted', {
+      action: {
+        label: 'Undo',
+        onClick: handleUndo,
+      },
+      duration: 5000,
+    })
+    setDeleteToastId(toastId)
+
+    // Clear deleted images after toast expires
+    setTimeout(() => {
+      setDeletedImages([])
+    }, 5000)
+  }, [images, handleUndo])
 
   const handleToggleSelect = useCallback((id: string) => {
     setImages((prev) =>
@@ -266,6 +395,8 @@ function App() {
         img.id === id ? { ...img, selected: !img.selected } : img
       )
     )
+    // Enable selection mode when user selects an item
+    setSelectionMode(true)
   }, [])
 
   const handleSelectAll = useCallback(() => {
@@ -310,10 +441,26 @@ function App() {
   }, [images, handleDownload, namingPattern])
 
   const handleDeleteSelected = useCallback(() => {
-    const count = images.filter((img) => img.selected).length
+    const imagesToDelete = images.filter((img) => img.selected)
+    const count = imagesToDelete.length
+
     setImages((prev) => prev.filter((img) => !img.selected))
-    toast.success(`Deleted ${count} image${count > 1 ? 's' : ''}`)
-  }, [images])
+    setDeletedImages(imagesToDelete)
+
+    const toastId = toast.success(`Deleted ${count} image${count > 1 ? 's' : ''}`, {
+      action: {
+        label: 'Undo',
+        onClick: handleUndo,
+      },
+      duration: 5000,
+    })
+    setDeleteToastId(toastId)
+
+    // Clear deleted images after toast expires
+    setTimeout(() => {
+      setDeletedImages([])
+    }, 5000)
+  }, [images, handleUndo])
 
   const handleRecompressSelected = useCallback(() => {
     const selectedImages = images.filter((img) => img.selected)
@@ -356,6 +503,19 @@ function App() {
       : 0
 
   const completedCount = images.filter((img) => img.status === 'completed').length
+  const compressingCount = images.filter((img) => img.status === 'compressing').length
+
+  // Calculate average compression speed and ETA
+  const completedImages = images.filter((img) => img.status === 'completed' && img.compressionTime && img.originalSize)
+  const avgSpeed = completedImages.length > 0
+    ? completedImages.reduce((sum, img) => sum + (img.originalSize / (img.compressionTime || 1)), 0) / completedImages.length
+    : 0
+
+  const pendingSize = images
+    .filter((img) => img.status === 'pending' || img.status === 'compressing')
+    .reduce((sum, img) => sum + img.originalSize, 0)
+
+  const estimatedTimeRemaining = avgSpeed > 0 ? pendingSize / avgSpeed : 0
 
   const getGridClass = () => {
     switch (viewMode) {
@@ -375,15 +535,15 @@ function App() {
 
       {/* Header */}
       <header className="border-b sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-3 md:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/10 p-2 rounded-lg">
-                <Sparkles className="h-6 w-6 text-primary" />
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="bg-primary/10 p-1.5 md:p-2 rounded-lg">
+                <Sparkles className="h-5 w-5 md:h-6 md:w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Image Compressor</h1>
-                <p className="text-sm text-muted-foreground">
+                <h1 className="text-lg md:text-2xl font-bold">Image Compressor</h1>
+                <p className="text-xs md:text-sm text-muted-foreground">
                   Free • Unlimited • Private
                 </p>
               </div>
@@ -397,27 +557,60 @@ function App() {
         {/* Stats */}
         {images.length > 0 && (
           <div className="grid gap-4 md:grid-cols-4">
-            <Card>
+            <Card
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => {
+                setFilterStatus('all')
+                toast.info('Showing all images')
+              }}
+            >
               <CardHeader className="pb-3">
                 <CardDescription>Total Images</CardDescription>
                 <CardTitle className="text-3xl">{images.length}</CardTitle>
               </CardHeader>
             </Card>
-            <Card>
+            <Card
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => {
+                if (compressingCount === 0) {
+                  setFilterStatus('completed')
+                  toast.info('Showing completed images')
+                }
+              }}
+            >
               <CardHeader className="pb-3">
-                <CardDescription>Completed</CardDescription>
-                <CardTitle className="text-3xl">{completedCount}</CardTitle>
+                <CardDescription>
+                  {compressingCount > 0 ? 'Compressing' : 'Completed'}
+                </CardDescription>
+                <CardTitle className="text-3xl">
+                  {compressingCount > 0 ? compressingCount : completedCount}
+                  {compressingCount > 0 && estimatedTimeRemaining > 0 && (
+                    <div className="text-sm font-normal text-muted-foreground mt-1">
+                      ~{Math.ceil(estimatedTimeRemaining)}s remaining
+                    </div>
+                  )}
+                </CardTitle>
               </CardHeader>
             </Card>
-            <Card>
+            <Card className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <CardDescription>Original Size</CardDescription>
                 <CardTitle className="text-2xl">{formatBytes(totalOriginalSize)}</CardTitle>
               </CardHeader>
             </Card>
-            <Card>
+            <Card
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => {
+                if (completedCount > 0) {
+                  handleDownloadAll()
+                }
+              }}
+            >
               <CardHeader className="pb-3">
-                <CardDescription>Compressed Size</CardDescription>
+                <CardDescription>
+                  {compressingCount > 0 ? 'Saved So Far' : 'Compressed Size'}
+                  {completedCount > 0 && <span className="ml-1 text-xs">(click to download)</span>}
+                </CardDescription>
                 <CardTitle className="text-2xl text-green-600 dark:text-green-400">
                   {formatBytes(totalCompressedSize)}
                   {totalReduction > 0 && (
@@ -425,13 +618,29 @@ function App() {
                       {totalReduction}% smaller
                     </Badge>
                   )}
+                  {compressingCount > 0 && avgSpeed > 0 && (
+                    <div className="text-sm font-normal text-muted-foreground mt-1">
+                      {formatBytes(avgSpeed)}/s
+                    </div>
+                  )}
                 </CardTitle>
               </CardHeader>
             </Card>
           </div>
         )}
 
-        {/* Settings */}
+        {/* Upload Area - MOVED TO TOP */}
+        <FileDropzone
+          onFilesSelected={handleFilesSelected}
+          disabled={isCompressing}
+        />
+
+        {/* Import Options - Inline below dropzone */}
+        {images.length === 0 && (
+          <ImportOptions onFilesImported={handleFilesSelected} />
+        )}
+
+        {/* Settings - MOVED AFTER UPLOAD */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -581,25 +790,12 @@ function App() {
           </CardContent>
         </Card>
 
-        {/* Import Options */}
-        {images.length === 0 && (
-          <ImportOptions onFilesImported={handleFilesSelected} />
-        )}
-
-        {/* Upload Area */}
-        {images.length === 0 && (
-          <FileDropzone
-            onFilesSelected={handleFilesSelected}
-            disabled={isCompressing}
-          />
-        )}
-
         {/* Image Grid */}
         {images.length > 0 && (
           <>
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <h2 className="text-2xl font-semibold">Your Images</h2>
-              <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center justify-between flex-wrap gap-2 md:gap-4">
+              <h2 className="text-xl md:text-2xl font-semibold">Your Images</h2>
+              <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
                 <SortFilterControls
                   sortBy={sortBy}
                   sortOrder={sortOrder}
@@ -611,13 +807,33 @@ function App() {
                   onViewModeChange={setViewMode}
                 />
                 <Button
+                  variant={selectionMode ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setSelectionMode(!selectionMode)
+                    if (selectionMode) {
+                      // Exit selection mode - deselect all
+                      handleDeselectAll()
+                    }
+                  }}
+                  className="h-8 px-2 md:px-3"
+                >
+                  {selectionMode ? (
+                    <CheckSquare className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2" />
+                  ) : (
+                    <Square className="h-3.5 w-3.5 md:h-4 md:w-4 md:mr-2" />
+                  )}
+                  <span className="hidden md:inline">{selectionMode ? 'Exit Select' : 'Select'}</span>
+                </Button>
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={() =>
                     document.getElementById('file-input')?.click()
                   }
+                  className="h-8 px-2 md:px-3"
                 >
-                  Add More
+                  <span className="text-xs md:text-sm">Add More</span>
                 </Button>
               </div>
             </div>
@@ -645,7 +861,7 @@ function App() {
                     onDelete={handleDelete}
                     onRetry={handleRetry}
                     onToggleSelect={handleToggleSelect}
-                    showCheckbox={selectedCount > 0 || images.length > 1}
+                    showCheckbox={selectionMode}
                   />
                 ))}
               </AnimatePresence>
@@ -685,6 +901,17 @@ function App() {
         }}
         className="hidden"
       />
+
+      {/* Fullscreen drop overlay */}
+      {isDraggingOver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="rounded-lg border-4 border-dashed border-primary p-12 bg-background/95 text-center">
+            <Sparkles className="h-16 w-16 mx-auto mb-4 text-primary animate-bounce" />
+            <h3 className="text-2xl font-bold mb-2">Drop your images here</h3>
+            <p className="text-muted-foreground">Release to start compressing</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

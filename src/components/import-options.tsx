@@ -3,7 +3,6 @@ import { Camera, Link, Clipboard } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Tooltip } from './ui/tooltip'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { toast } from 'sonner'
 
 interface ImportOptionsProps {
@@ -122,64 +121,60 @@ export function ImportOptions({ onFilesImported }: ImportOptionsProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Import Images</CardTitle>
-        <CardDescription>Import from clipboard, URL, or camera</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex gap-2 flex-wrap">
-          <Tooltip content="Paste image from clipboard">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClipboardPaste}
-              className="flex-1"
-            >
-              <Clipboard className="h-4 w-4 mr-2" />
-              Paste from Clipboard
-            </Button>
-          </Tooltip>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+        <span>Or import from:</span>
+        <Tooltip content="Paste image from clipboard">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClipboardPaste}
+            className="h-8 gap-1.5"
+          >
+            <Clipboard className="h-3.5 w-3.5" />
+            Clipboard
+          </Button>
+        </Tooltip>
+        <span className="text-muted-foreground/40">•</span>
+        <Tooltip content="Import from URL">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowUrlInput(!showUrlInput)}
+            className="h-8 gap-1.5"
+          >
+            <Link className="h-3.5 w-3.5" />
+            URL
+          </Button>
+        </Tooltip>
+        <span className="text-muted-foreground/40">•</span>
+        <Tooltip content="Capture with camera">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCameraCapture}
+            className="h-8 gap-1.5"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Camera
+          </Button>
+        </Tooltip>
+      </div>
 
-          <Tooltip content="Import from URL">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowUrlInput(!showUrlInput)}
-              className="flex-1"
-            >
-              <Link className="h-4 w-4 mr-2" />
-              Import from URL
-            </Button>
-          </Tooltip>
-
-          <Tooltip content="Capture with camera">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCameraCapture}
-              className="flex-1"
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              Capture Photo
-            </Button>
-          </Tooltip>
+      {showUrlInput && (
+        <div className="flex gap-2 max-w-md">
+          <Input
+            placeholder="https://example.com/image.jpg"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleUrlImport()}
+            className="h-9"
+          />
+          <Button onClick={handleUrlImport} disabled={isLoading} size="sm">
+            {isLoading ? 'Loading...' : 'Import'}
+          </Button>
         </div>
-
-        {showUrlInput && (
-          <div className="flex gap-2">
-            <Input
-              placeholder="https://example.com/image.jpg"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleUrlImport()}
-            />
-            <Button onClick={handleUrlImport} disabled={isLoading}>
-              {isLoading ? 'Loading...' : 'Import'}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   )
 }
