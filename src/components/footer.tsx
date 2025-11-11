@@ -17,7 +17,7 @@ export function Footer() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-center md:items-end gap-1">
             <p className="text-sm text-muted-foreground">
               Powered by{' '}
               <a
@@ -27,6 +27,17 @@ export function Footer() {
                 className="text-foreground hover:text-primary transition-colors font-medium"
               >
                 Scaling High Technologies
+              </a>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Need SEO, Web Development, or Graphic Design?{' '}
+              <a
+                href="https://www.scalinghigh.com/contact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-medium"
+              >
+                Get in touch
               </a>
             </p>
           </div>

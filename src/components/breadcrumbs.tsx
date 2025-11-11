@@ -19,19 +19,6 @@ export function Breadcrumbs() {
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </li>
           <li>
-            <a
-              href="https://www.scalinghigh.com/tools"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Tools
-            </a>
-          </li>
-          <li>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </li>
-          <li>
             <span className="text-foreground font-medium">Image Compressor</span>
           </li>
         </ol>
